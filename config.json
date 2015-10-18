@@ -1,0 +1,8 @@
+{
+    "port": 80,
+    "forwards": {
+            "www.example.com": ":8000",
+           "blog.example.com": ":8001",
+        "service.example.com": ":8002"
+    }
+}
