@@ -7,26 +7,39 @@ import (
     "net"
     "net/http"
     "net/http/httputil"
-    "encoding/json"
+	"strings"
+	"encoding/json"
 )
 
+
 type Config struct {
-    Port        int
-    Forwards    map[string]string
+	Port        int
+	Forwards    map[string]string
+	Redirects 	map[string]string
 }
 
 func (c *Config) Load(path string) error {
-    file, err := os.Open(path)
-    if err != nil {
-        return fmt.Errorf("Could not open config file '%s'", path)
-    }
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("Could not open config file '%s'", path)
+	}
 
-    decoder := json.NewDecoder(file)
-    if err:= decoder.Decode(c); err != nil {
-        return fmt.Errorf("Error parsing '%s': %s", path, err)
-    }
+	decoder := json.NewDecoder(file)
+	if err:= decoder.Decode(c); err != nil {
+		return fmt.Errorf("Error parsing '%s': %s", path, err)
+	}
 
-    return nil
+	return c.checkRedirects()
+}
+
+func (c *Config) checkRedirects() error {
+	for k, v := range c.Redirects {
+		if !strings.HasPrefix(v, "http://") {
+			c.Redirects[k] = "http://" + v
+		}
+	}
+
+	return nil
 }
 
 func main() {
@@ -40,16 +53,29 @@ func main() {
         log.Fatal(err)
     }
 
-    // Set up HTTP proxy
+    // HTTP proxy
     proxy := &httputil.ReverseProxy{Director: func(req *http.Request) {
-        host, _, _ := net.SplitHostPort(req.Host)
-        gate := conf.Forwards[host]
+		host, _, _ := net.SplitHostPort(req.Host)
+		req.URL.Scheme = "http"
+		req.URL.Host = conf.Forwards[host]
+	}}
 
-        req.URL.Scheme = "http"
-        req.URL.Host = gate
-    }}
+	// HTTP handler
+	http.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
+		host, _, _ := net.SplitHostPort(req.Host)
+		forward := conf.Forwards[host]
+		redirect := conf.Redirects[host]
+
+		if forward != "" {
+			proxy.ServeHTTP(rw, req)
+		} else if redirect != "" {
+			http.Redirect(rw, req, redirect, http.StatusMovedPermanently)
+		} else {
+			http.NotFound(rw, req)
+		}
+	})
 
     // Start server
     addr := fmt.Sprintf(":%d", conf.Port)
-    log.Fatal(http.ListenAndServe(addr, proxy))
+    log.Fatal(http.ListenAndServe(addr, nil))
 }
