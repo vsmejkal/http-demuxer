@@ -18,7 +18,6 @@ Routing is based on the rules specified in JSON file:
     "redirects": {
         "example.com": "www.example.com"
     }
-
 }
 ```
 With this config, demuxer will listen  on port 80 and forward all requests
