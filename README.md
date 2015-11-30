@@ -30,5 +30,5 @@ Not Found error.
 
 ## Usage
 ```bash
-./forwarder config.json
+./http-demuxer routes.json
 ```
